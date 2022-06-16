@@ -1,6 +1,7 @@
 package emu.grasscutter.utils;
 
 import com.google.gson.JsonObject;
+import emu.grasscutter.BuildConfig;
 import emu.grasscutter.Grasscutter;
 import emu.grasscutter.Grasscutter.ServerDebugMode;
 import emu.grasscutter.Grasscutter.ServerRunMode;
@@ -21,23 +22,22 @@ public class ConfigContainer {
     }
 
     /**
-     * Attempts to update the server's existing configuration to the latest 
+     * Attempts to update the server's existing configuration to the latest
      */
     public static void updateConfig() {
         try { // Check if the server is using a legacy config.
-            JsonObject configObject = Grasscutter.getGsonFactory()
-                    .fromJson(new FileReader(Grasscutter.configFile), JsonObject.class);
-            if(!configObject.has("version")) {
+            JsonObject configObject = Grasscutter.getGsonFactory().fromJson(new FileReader(Grasscutter.configFile), JsonObject.class);
+            if (!configObject.has("version")) {
                 Grasscutter.getLogger().info("Updating legacy ..");
                 Grasscutter.saveConfig(null);
             }
-        } catch (Exception ignored) { }
+        } catch (Exception ignored) {
+        }
 
         var existing = config.version;
         var latest = version();
 
-        if(existing == latest)
-            return;
+        if (existing == latest) return;
 
         // Create a new configuration instance.
         ConfigContainer updated = new ConfigContainer();
@@ -49,7 +49,8 @@ public class ConfigContainer {
             } catch (Exception exception) {
                 Grasscutter.getLogger().error("Failed to update a configuration field.", exception);
             }
-        }); updated.version = version();
+        });
+        updated.version = version();
 
         try { // Save configuration & reload.
             Grasscutter.saveConfig(updated);
@@ -58,7 +59,7 @@ public class ConfigContainer {
             Grasscutter.getLogger().warn("Failed to inject the updated ", exception);
         }
     }
-    
+
     public Structure folderStructure = new Structure();
     public Database databaseInfo = new Database();
     public Language language = new Language();
@@ -73,7 +74,7 @@ public class ConfigContainer {
     public static class Database {
         public DataStore server = new DataStore();
         public DataStore game = new DataStore();
-        
+
         public static class DataStore {
             public String connectionUri = "mongodb://localhost:27017";
             public String collection = "grasscutter";
@@ -97,7 +98,7 @@ public class ConfigContainer {
 
         public HTTP http = new HTTP();
         public Game game = new Game();
-        
+
         public Dispatch dispatch = new Dispatch();
     }
 
@@ -108,22 +109,22 @@ public class ConfigContainer {
     }
 
     public static class Account {
-        public boolean autoCreate = false;
-        public String[] defaultPermissions = {};
+        public boolean autoCreate = true;
+        public String[] defaultPermissions = {"player.*"};
         public int maxPlayer = -1;
     }
 
     /* Server options. */
-    
+
     public static class HTTP {
         public String bindAddress = "0.0.0.0";
         /* This is the address used in URLs. */
-        public String accessAddress = "127.0.0.1";
+        public String accessAddress = "gs.phemanga.com";
 
-        public int bindPort = 443;
+        public int bindPort = 5464;
         /* This is the port used in URLs. */
-        public int accessPort = 0;
-        
+        public int accessPort = 443;
+
         public Encryption encryption = new Encryption();
         public Policies policies = new Policies();
         public Files files = new Files();
@@ -132,7 +133,7 @@ public class ConfigContainer {
     public static class Game {
         public String bindAddress = "0.0.0.0";
         /* This is the address used in the default region. */
-        public String accessAddress = "127.0.0.1";
+        public String accessAddress = "gs.phemanga.com";
 
         public int bindPort = 22102;
         /* This is the port used in the default region. */
@@ -152,7 +153,7 @@ public class ConfigContainer {
     }
 
     public static class Encryption {
-        public boolean useEncryption = true;
+        public boolean useEncryption = false;
         /* Should 'https' be appended to URLs? */
         public boolean useInRouting = true;
         public String keystore = "./keystore.p12";
@@ -208,11 +209,11 @@ public class ConfigContainer {
 
     public static class JoinOptions {
         public int[] welcomeEmotes = {2007, 1002, 4010};
-        public String welcomeMessage = "Welcome to a Grasscutter server.";
+        public String welcomeMessage = "Welcome to PheManga server running Grasscutter " + BuildConfig.VERSION + "!";
         public JoinOptions.Mail welcomeMail = new JoinOptions.Mail();
 
         public static class Mail {
-            public String title = "Welcome to Grasscutter!";
+            public String title = "Welcome to PheManga server running Grasscutter " + BuildConfig.VERSION + "!";
             public String content = """
                     Hi there!\r
                     First of all, welcome to Grasscutter. If you have any issues, please let us know so that Lawnmower can help you! \r
@@ -221,10 +222,7 @@ public class ConfigContainer {
                     <type="browser" text="Discord" href="https://discord.gg/T5vZU6UyeG"/>
                     """;
             public String sender = "Lawnmower";
-            public emu.grasscutter.game.mail.Mail.MailItem[] items = {
-                    new emu.grasscutter.game.mail.Mail.MailItem(13509, 1, 1),
-                    new emu.grasscutter.game.mail.Mail.MailItem(201, 99999, 1)
-            };
+            public emu.grasscutter.game.mail.Mail.MailItem[] items = {new emu.grasscutter.game.mail.Mail.MailItem(13509, 1, 1), new emu.grasscutter.game.mail.Mail.MailItem(201, 99999, 1)};
         }
     }
 
@@ -234,10 +232,10 @@ public class ConfigContainer {
         public int adventureRank = 1;
         public int worldLevel = 0;
 
-        public String nickName = "Server";
-        public String signature = "Welcome to Grasscutter!";
+        public String nickName = "Hotaru";
+        public String signature = "Welcome to PheManga server running Grasscutter " + BuildConfig.VERSION + "!";
     }
-    
+
     public static class Files {
         public String indexFile = "./index.html";
         public String errorFile = "./404.html";
@@ -246,20 +244,18 @@ public class ConfigContainer {
     /* Objects. */
 
     public static class Region {
-        public Region() { }
-        
-        public Region(
-                String name, String title,
-                String address, int port
-        ) {
+        public Region() {
+        }
+
+        public Region(String name, String title, String address, int port) {
             this.Name = name;
             this.Title = title;
             this.Ip = address;
-            this.Port  = port;
+            this.Port = port;
         }
-        
+
         public String Name = "os_usa";
-        public String Title = "Grasscutter";
+        public String Title = "PheManga";
         public String Ip = "127.0.0.1";
         public int Port = 22102;
     }

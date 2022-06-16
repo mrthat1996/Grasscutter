@@ -47,7 +47,7 @@
       "shutdown": "Shutting down...",
       "done": "Done! For help, type \"help\"",
       "error": "An error occurred.",
-      "welcome": "Welcome to Grasscutter!",
+      "welcome": "Welcome to PheManga Server running Grasscutter %s!",
       "run_mode_error": "Invalid server run mode: %s.",
       "run_mode_help": "Server run mode must be 'HYBRID', 'DISPATCH_ONLY', or 'GAME_ONLY'. Unable to start Grasscutter...",
       "create_resources": "Creating resources folder...",

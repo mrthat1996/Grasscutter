@@ -1,5 +1,6 @@
 package emu.grasscutter.server.http;
 
+import emu.grasscutter.BuildConfig;
 import emu.grasscutter.Grasscutter;
 import emu.grasscutter.Grasscutter.ServerDebugMode;
 import emu.grasscutter.utils.FileUtils;
@@ -155,7 +156,7 @@ public final class HttpServer {
                                 </head>
                                 <body>%s</body>
                             </html>
-                            """.formatted(translate("messages.status.welcome")));
+                            """.formatted(translate("messages.status.welcome", BuildConfig.VERSION)));
                 else {
                     final var filePath = file.getPath();
                     final MediaType fromExtension = MediaType.getByExtension(filePath.substring(filePath.lastIndexOf(".") + 1));
