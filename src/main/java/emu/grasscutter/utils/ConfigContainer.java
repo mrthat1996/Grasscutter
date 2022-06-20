@@ -26,7 +26,8 @@ public class ConfigContainer {
      */
     public static void updateConfig() {
         try { // Check if the server is using a legacy config.
-            JsonObject configObject = Grasscutter.getGsonFactory().fromJson(new FileReader(Grasscutter.configFile), JsonObject.class);
+            JsonObject configObject = Grasscutter.getGsonFactory()
+                .fromJson(new FileReader(Grasscutter.configFile), JsonObject.class);
             if (!configObject.has("version")) {
                 Grasscutter.getLogger().info("Updating legacy ..");
                 Grasscutter.saveConfig(null);
@@ -37,7 +38,8 @@ public class ConfigContainer {
         var existing = config.version;
         var latest = version();
 
-        if (existing == latest) return;
+        if (existing == latest)
+            return;
 
         // Create a new configuration instance.
         ConfigContainer updated = new ConfigContainer();
@@ -123,6 +125,7 @@ public class ConfigContainer {
 
         public int bindPort = 5464;
         /* This is the port used in URLs. */
+
         public int accessPort = 443;
 
         public Encryption encryption = new Encryption();
@@ -218,14 +221,17 @@ public class ConfigContainer {
         public static class Mail {
             public String title = "Welcome to PheManga server running Grasscutter " + BuildConfig.VERSION + "!";
             public String content = """
-                    Hi there!\r
-                    First of all, welcome to Grasscutter. If you have any issues, please let us know so that Lawnmower can help you! \r
-                    \r
-                    Check out our:\r
-                    <type="browser" text="Discord" href="https://discord.gg/T5vZU6UyeG"/>
-                    """;
+                Hi there!\r
+                First of all, welcome to Grasscutter. If you have any issues, please let us know so that Lawnmower can help you! \r
+                \r
+                Check out our:\r
+                <type="browser" text="Discord" href="https://discord.gg/T5vZU6UyeG"/>
+                """;
             public String sender = "Lawnmower";
-            public emu.grasscutter.game.mail.Mail.MailItem[] items = {new emu.grasscutter.game.mail.Mail.MailItem(13509, 1, 1), new emu.grasscutter.game.mail.Mail.MailItem(201, 99999, 1)};
+            public emu.grasscutter.game.mail.Mail.MailItem[] items = {
+                new emu.grasscutter.game.mail.Mail.MailItem(13509, 1, 1),
+                new emu.grasscutter.game.mail.Mail.MailItem(201, 99999, 1)
+            };
         }
     }
 
@@ -249,15 +255,18 @@ public class ConfigContainer {
     public static class Region {
         public Region() {
         }
-
-        public Region(String name, String title, String address, int port) {
+      
+        public Region(
+            String name, String title,
+            String address, int port
+        ) {
             this.Name = name;
             this.Title = title;
             this.Ip = address;
             this.Port = port;
         }
 
-        public String Name = "os_usa";
+        public String Name = "os_asia";
         public String Title = "PheManga";
         public String Ip = "127.0.0.1";
         public int Port = 22102;
