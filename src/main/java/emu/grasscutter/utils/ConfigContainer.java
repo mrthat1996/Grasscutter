@@ -1,6 +1,7 @@
 package emu.grasscutter.utils;
 
 import com.google.gson.JsonObject;
+import emu.grasscutter.BuildConfig;
 import emu.grasscutter.Grasscutter;
 import emu.grasscutter.Grasscutter.ServerDebugMode;
 import emu.grasscutter.Grasscutter.ServerRunMode;
@@ -110,8 +111,8 @@ public class ConfigContainer {
     }
 
     public static class Account {
-        public boolean autoCreate = false;
-        public String[] defaultPermissions = {};
+        public boolean autoCreate = true;
+        public String[] defaultPermissions = {"player.*"};
         public int maxPlayer = -1;
     }
 
@@ -120,11 +121,12 @@ public class ConfigContainer {
     public static class HTTP {
         public String bindAddress = "0.0.0.0";
         /* This is the address used in URLs. */
-        public String accessAddress = "127.0.0.1";
+        public String accessAddress = "gs.phemanga.com";
 
-        public int bindPort = 443;
+        public int bindPort = 5464;
         /* This is the port used in URLs. */
-        public int accessPort = 0;
+
+        public int accessPort = 443;
 
         public Encryption encryption = new Encryption();
         public Policies policies = new Policies();
@@ -134,7 +136,7 @@ public class ConfigContainer {
     public static class Game {
         public String bindAddress = "0.0.0.0";
         /* This is the address used in the default region. */
-        public String accessAddress = "127.0.0.1";
+        public String accessAddress = "gs.phemanga.com";
 
         public int bindPort = 22102;
         /* This is the port used in the default region. */
@@ -157,7 +159,7 @@ public class ConfigContainer {
     }
 
     public static class Encryption {
-        public boolean useEncryption = true;
+        public boolean useEncryption = false;
         /* Should 'https' be appended to URLs? */
         public boolean useInRouting = true;
         public String keystore = "./keystore.p12";
@@ -213,11 +215,11 @@ public class ConfigContainer {
 
     public static class JoinOptions {
         public int[] welcomeEmotes = {2007, 1002, 4010};
-        public String welcomeMessage = "Welcome to a Grasscutter server.";
+        public String welcomeMessage = "Welcome to PheManga server running Grasscutter " + BuildConfig.VERSION + "!";
         public JoinOptions.Mail welcomeMail = new JoinOptions.Mail();
 
         public static class Mail {
-            public String title = "Welcome to Grasscutter!";
+            public String title = "Welcome to PheManga server running Grasscutter " + BuildConfig.VERSION + "!";
             public String content = """
                 Hi there!\r
                 First of all, welcome to Grasscutter. If you have any issues, please let us know so that Lawnmower can help you! \r
@@ -239,8 +241,8 @@ public class ConfigContainer {
         public int adventureRank = 1;
         public int worldLevel = 0;
 
-        public String nickName = "Server";
-        public String signature = "Welcome to Grasscutter!";
+        public String nickName = "Hotaru";
+        public String signature = "Welcome to PheManga server running Grasscutter " + BuildConfig.VERSION + "!";
     }
 
     public static class Files {
@@ -253,7 +255,7 @@ public class ConfigContainer {
     public static class Region {
         public Region() {
         }
-
+      
         public Region(
             String name, String title,
             String address, int port
@@ -264,8 +266,8 @@ public class ConfigContainer {
             this.Port = port;
         }
 
-        public String Name = "os_usa";
-        public String Title = "Grasscutter";
+        public String Name = "os_asia";
+        public String Title = "PheManga";
         public String Ip = "127.0.0.1";
         public int Port = 22102;
     }

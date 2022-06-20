@@ -1,5 +1,6 @@
 package emu.grasscutter.server.http;
 
+import emu.grasscutter.BuildConfig;
 import emu.grasscutter.Grasscutter;
 import emu.grasscutter.Grasscutter.ServerDebugMode;
 import emu.grasscutter.utils.FileUtils;
@@ -152,14 +153,14 @@ public final class HttpServer {
                 File file = new File(HTTP_STATIC_FILES.indexFile);
                 if (!file.exists())
                     response.send("""
-                        <!DOCTYPE html>
-                        <html>
-                            <head>
-                                <meta charset="utf8">
-                            </head>
-                            <body>%s</body>
-                        </html>
-                        """.formatted(translate("messages.status.welcome")));
+                            <!DOCTYPE html>
+                            <html>
+                                <head>
+                                    <meta charset="utf8">
+                                </head>
+                                <body>%s</body>
+                            </html>
+                            """.formatted(translate("messages.status.welcome", BuildConfig.VERSION)));
                 else {
                     final var filePath = file.getPath();
                     final MediaType fromExtension = MediaType.getByExtension(filePath.substring(filePath.lastIndexOf(".") + 1));
