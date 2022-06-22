@@ -4,106 +4,107 @@ import dev.morphia.annotations.*;
 import emu.grasscutter.database.DatabaseHelper;
 import emu.grasscutter.utils.Crypto;
 import emu.grasscutter.utils.Utils;
+import org.bson.Document;
 
 import java.util.*;
 import java.util.stream.Stream;
 
-import org.bson.Document;
-
-import static emu.grasscutter.Configuration.*;
+import static emu.grasscutter.Configuration.ACCOUNT;
+import static emu.grasscutter.Configuration.LANGUAGE;
 
 @Entity(value = "accounts", useDiscriminator = false)
 public class Account {
-	@Id private String id;
-	
-	@Indexed(options = @IndexOptions(unique = true))
-	@Collation(locale = "simple", caseLevel = true)
-	private String username;
-	private String password; // Unused for now
-	
-	private int reservedPlayerId;
-	private String email;
-	
-	private String token;
-	private String sessionKey; // Session token for dispatch server
-	private List<String> permissions;
+    @Id
+    private String id;
+
+    @Indexed(options = @IndexOptions(unique = true))
+    @Collation(locale = "simple", caseLevel = true)
+    private String username;
+    private String password; // Unused for now
+
+    private int reservedPlayerId;
+    private String email;
+
+    private String token;
+    private String sessionKey; // Session token for dispatch server
+    private final List<String> permissions;
     private Locale locale;
 
-	private String banReason;
-	private int banEndTime;
-	private int banStartTime;
-	private boolean isBanned;
-	
-	@Deprecated
-	public Account() {
-		this.permissions = new ArrayList<>();
+    private String banReason;
+    private int banEndTime;
+    private int banStartTime;
+    private boolean isBanned;
+
+    @Deprecated
+    public Account() {
+        this.permissions = new ArrayList<>();
         this.locale = LANGUAGE;
-	}
+    }
 
-	public String getId() {
-		return id;
-	}
+    public String getId() {
+        return this.id;
+    }
 
-	public void setId(String id) {
-		this.id = id;
-	}
+    public void setId(String id) {
+        this.id = id;
+    }
 
-	public String getUsername() {
-		return username;
-	}
+    public String getUsername() {
+        return this.username;
+    }
 
-	public void setUsername(String username) {
-		this.username = username;
-	}
+    public void setUsername(String username) {
+        this.username = username;
+    }
 
-	public String getPassword() {
-		return password;
-	}
+    public String getPassword() {
+        return this.password;
+    }
 
-	public void setPassword(String password) {
-		this.password = password;
-	}
+    public void setPassword(String password) {
+        this.password = password;
+    }
 
-	public String getToken() {
-		return token;
-	}
+    public String getToken() {
+        return this.token;
+    }
 
-	public void setToken(String token) {
-		this.token = token;
-	}
+    public void setToken(String token) {
+        this.token = token;
+    }
 
-	public int getReservedPlayerUid() {
-		return this.reservedPlayerId;
-	}
+    public int getReservedPlayerUid() {
+        return this.reservedPlayerId;
+    }
 
-	public void setReservedPlayerUid(int playerId) {
-		this.reservedPlayerId = playerId;
-	}
-	
-	public String getEmail() {
-		if(email != null && !email.isEmpty()) {
-			return email;
-		} else {
-			return "";
-		}
-	}
+    public void setReservedPlayerUid(int playerId) {
+        this.reservedPlayerId = playerId;
+    }
 
-	public void setEmail(String email) {
-		this.email = email;
-	}
+    public String getEmail() {
+        if (this.email != null && !this.email.isEmpty()) {
+            return this.email;
+        } else {
+            return "";
+        }
+    }
 
-	public String getSessionKey() {
-		return this.sessionKey;
-	}
+    public void setEmail(String email) {
+        this.email = email;
+    }
 
-	public String generateSessionKey() {
-		this.sessionKey = Utils.bytesToHex(Crypto.createSessionKey(32));
-		this.save();
-		return this.sessionKey;
-	}
+    public String getSessionKey() {
+        return this.sessionKey;
+    }
+
+    public String generateSessionKey() {
+        this.sessionKey = Utils.bytesToHex(Crypto.createSessionKey(32));
+        this.save();
+        return this.sessionKey;
+    }
 
     public Locale getLocale() {
-        return locale;
+        return this.locale;
     }
 
     public void setLocale(Locale locale) {
@@ -226,10 +227,9 @@ public class Account {
 		if (!document.containsKey("permissions")) {
 			this.addPermission("*");
 		}
-
         // Set account default language as server default language
         if (!document.containsKey("locale")) {
             this.locale = LANGUAGE;
         }
-	}
+    }
 }

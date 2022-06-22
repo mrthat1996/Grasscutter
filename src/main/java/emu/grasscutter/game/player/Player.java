@@ -23,6 +23,7 @@ import emu.grasscutter.game.expedition.ExpeditionInfo;
 import emu.grasscutter.game.friends.FriendsList;
 import emu.grasscutter.game.friends.PlayerProfile;
 import emu.grasscutter.game.gacha.PlayerGachaInfo;
+import emu.grasscutter.game.home.GameHome;
 import emu.grasscutter.game.inventory.GameItem;
 import emu.grasscutter.game.inventory.Inventory;
 import emu.grasscutter.game.mail.Mail;
@@ -30,16 +31,16 @@ import emu.grasscutter.game.mail.MailHandler;
 import emu.grasscutter.game.managers.FurnitureManager;
 import emu.grasscutter.game.managers.InsectCaptureManager;
 import emu.grasscutter.game.managers.ResinManager;
+import emu.grasscutter.game.managers.SotSManager;
 import emu.grasscutter.game.managers.deforestation.DeforestationManager;
 import emu.grasscutter.game.managers.energy.EnergyManager;
 import emu.grasscutter.game.managers.forging.ActiveForgeData;
 import emu.grasscutter.game.managers.forging.ForgingManager;
-import emu.grasscutter.game.managers.mapmark.*;
+import emu.grasscutter.game.managers.mapmark.MapMark;
+import emu.grasscutter.game.managers.mapmark.MapMarksManager;
 import emu.grasscutter.game.managers.stamina.StaminaManager;
-import emu.grasscutter.game.managers.SotSManager;
 import emu.grasscutter.game.props.ActionReason;
 import emu.grasscutter.game.props.PlayerProperty;
-import emu.grasscutter.game.props.SceneType;
 import emu.grasscutter.game.quest.QuestManager;
 import emu.grasscutter.game.shop.ShopLimit;
 import emu.grasscutter.game.tower.TowerData;
@@ -47,18 +48,16 @@ import emu.grasscutter.game.tower.TowerManager;
 import emu.grasscutter.game.world.Scene;
 import emu.grasscutter.game.world.World;
 import emu.grasscutter.net.packet.BasePacket;
-import emu.grasscutter.net.proto.*;
 import emu.grasscutter.net.proto.AbilityInvokeEntryOuterClass.AbilityInvokeEntry;
 import emu.grasscutter.net.proto.AttackResultOuterClass.AttackResult;
 import emu.grasscutter.net.proto.CombatInvokeEntryOuterClass.CombatInvokeEntry;
-import emu.grasscutter.net.proto.GadgetInteractReqOuterClass.GadgetInteractReq;
+import emu.grasscutter.net.proto.*;
 import emu.grasscutter.net.proto.InteractTypeOuterClass.InteractType;
 import emu.grasscutter.net.proto.MpSettingTypeOuterClass.MpSettingType;
 import emu.grasscutter.net.proto.OnlinePlayerInfoOuterClass.OnlinePlayerInfo;
 import emu.grasscutter.net.proto.PlayerLocationInfoOuterClass.PlayerLocationInfo;
 import emu.grasscutter.net.proto.ProfilePictureOuterClass.ProfilePicture;
 import emu.grasscutter.net.proto.SocialDetailOuterClass.SocialDetail;
-
 import emu.grasscutter.server.event.player.PlayerJoinEvent;
 import emu.grasscutter.server.event.player.PlayerQuitEvent;
 import emu.grasscutter.server.game.GameServer;
@@ -66,8 +65,8 @@ import emu.grasscutter.server.game.GameSession;
 import emu.grasscutter.server.game.GameSession.SessionState;
 import emu.grasscutter.server.packet.send.*;
 import emu.grasscutter.utils.DateHelper;
-import emu.grasscutter.utils.Position;
 import emu.grasscutter.utils.MessageHandler;
+import emu.grasscutter.utils.Position;
 import emu.grasscutter.utils.Utils;
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
@@ -75,7 +74,7 @@ import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import static emu.grasscutter.Configuration.*;
+import static emu.grasscutter.Configuration.GAME_OPTIONS;
 
 @Entity(value = "players", useDiscriminator = false)
 public class Player {
@@ -1341,7 +1340,7 @@ public class Player {
 				quest.finish();
 			}
 			getQuestManager().addQuest(35101);
-			
+
 			this.setSceneId(3);
 			this.getPos().set(GameConstants.START_POSITION);
 		}
@@ -1423,140 +1422,257 @@ public class Player {
 			this.getTeamManager().saveAvatars();
 			this.getFriendsList().save();
 
-			// Call quit event.
-			PlayerQuitEvent event = new PlayerQuitEvent(this); event.call();
+        // Create world
+        World world = new World(this);
+        world.addPlayer(this);
 
-			//reset wood
-			getDeforestationManager().resetWood();
+        // Multiplayer setting
+        this.setProperty(PlayerProperty.PROP_PLAYER_MP_SETTING_TYPE, this.getMpSetting().getNumber());
+        this.setProperty(PlayerProperty.PROP_IS_MP_MODE_AVAILABLE, 1);
 
-		}catch (Throwable e){
-			e.printStackTrace();
-			Grasscutter.getLogger().warn("Player (UID {}) save failure", getUid());
-		}finally {
-			removeFromServer();
-		}
-	}
+        // Packets
+        this.session.send(new PacketPlayerDataNotify(this)); // Player data
+        this.session.send(new PacketStoreWeightLimitNotify());
+        this.session.send(new PacketPlayerStoreNotify(this));
+        this.session.send(new PacketAvatarDataNotify(this));
+        this.session.send(new PacketFinishedParentQuestNotify(this));
+        this.session.send(new PacketQuestListNotify(this));
+        this.session.send(new PacketCodexDataFullNotify(this));
+        this.session.send(new PacketAllWidgetDataNotify(this));
+        this.session.send(new PacketWidgetGadgetAllDataNotify());
+        this.session.send(new PacketCombineDataNotify(this.unlockedCombines));
+        this.forgingManager.sendForgeDataNotify();
+        this.resinManager.onPlayerLogin();
 
-	public void removeFromServer() {
-		// Remove from server.
-		//Note: DON'T DELETE BY UID,BECAUSE THERE ARE MULTIPLE SAME UID PLAYERS WHEN DUPLICATED LOGIN!
-		//so I decide to delete by object rather than uid
-		getServer().getPlayers().values().removeIf(player1 -> player1 == this);
-	}
+        this.getTodayMoonCard(); // The timer works at 0:0, some users log in after that, use this method to check if they have received a reward today or not. If not, send the reward.
 
-	public enum SceneLoadState {
-		NONE(0), LOADING(1), INIT(2), LOADED(3);
+        this.furnitureManager.onLogin();
+        // Home
+        this.home = GameHome.getByUid(this.getUid());
+        this.home.onOwnerLogin(this);
 
-		private final int value;
+        this.session.send(new PacketPlayerEnterSceneNotify(this)); // Enter game world
+        this.session.send(new PacketPlayerLevelRewardUpdateNotify(this.rewardedLevels));
+        this.session.send(new PacketOpenStateUpdateNotify());
 
-		private SceneLoadState(int value) {
-			this.value = value;
-		}
+        // First notify packets sent
+        this.setHasSentAvatarDataNotify(true);
 
-		public int getValue() {
-			return this.value;
-		}
-	}
+        // Set session state
+        this.session.setState(SessionState.ACTIVE);
 
-	public void setMessageHandler(MessageHandler messageHandler) {
-		this.messageHandler = messageHandler;
-	}
+        // Call join event.
+        PlayerJoinEvent event = new PlayerJoinEvent(this);
+        event.call();
+        if (event.isCanceled()) { // If event is not cancelled, continue.
+            this.session.close();
+            return;
+        }
 
-	private void saveSanityCheckedProperty(PlayerProperty prop, int value) {
-		getProperties().put(prop.getId(), value);
-	}
+        // register
+        this.getServer().registerPlayer(this);
+        this.getProfile().setPlayer(this); // Set online
+    }
 
-	private boolean setPropertyWithSanityCheck(PlayerProperty prop, int value) {
-		if (prop == PlayerProperty.PROP_EXP) { // 1001
-			if (!(value >= 0)) { return false; }
-		} else if (prop == PlayerProperty.PROP_BREAK_LEVEL) { // 1002
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_SATIATION_VAL) { // 1003
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_SATIATION_PENALTY_TIME) { // 1004
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_LEVEL) { // 4001
-			if (!(value >= 0 && value <= 90)) { return false; }
-		} else if (prop == PlayerProperty.PROP_LAST_CHANGE_AVATAR_TIME) { // 10001
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_MAX_SPRING_VOLUME) { // 10002
-			if (!(value >= 0 && value <= SotSManager.GlobalMaximumSpringVolume)) { return false; }
-		} else if (prop == PlayerProperty.PROP_CUR_SPRING_VOLUME) { // 10003
-			int playerMaximumSpringVolume = getProperty(PlayerProperty.PROP_MAX_SPRING_VOLUME);
-			if (!(value >= 0 && value <= playerMaximumSpringVolume)) { return false; }
-		} else if (prop == PlayerProperty.PROP_IS_SPRING_AUTO_USE) { // 10004
-			if (!(value >= 0 && value <= 1)) { return false; }
-		} else if (prop == PlayerProperty.PROP_SPRING_AUTO_USE_PERCENT) { // 10005
-			if (!(value >= 0 && value <= 100)) { return false; }
-		} else if (prop == PlayerProperty.PROP_IS_FLYABLE) { // 10006
-			if (!(0 <= value && value <= 1)) { return false; }
-		} else if (prop == PlayerProperty.PROP_IS_WEATHER_LOCKED) { // 10007
-			if (!(0 <= value && value <= 1)) { return false; }
-		} else if (prop == PlayerProperty.PROP_IS_GAME_TIME_LOCKED) { // 10008
-			if (!(0 <= value && value <= 1)) { return false; }
-		} else if (prop == PlayerProperty.PROP_IS_TRANSFERABLE) { // 10009
-			if (!(0 <= value && value <= 1)) { return false; }
-		} else if (prop == PlayerProperty.PROP_MAX_STAMINA) { // 10010
-			if (!(value >= 0 && value <= StaminaManager.GlobalCharacterMaximumStamina)) { return false; }
-		} else if (prop == PlayerProperty.PROP_CUR_PERSIST_STAMINA) { // 10011
-			int playerMaximumStamina = getProperty(PlayerProperty.PROP_MAX_STAMINA);
-			if (!(value >= 0 && value <= playerMaximumStamina)) { return false; }
-		} else if (prop == PlayerProperty.PROP_CUR_TEMPORARY_STAMINA) { // 10012
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_PLAYER_LEVEL) { // 10013
-			if (!(0 < value && value <= 90)) { return false; }
-		} else if (prop == PlayerProperty.PROP_PLAYER_EXP) { // 10014
-			if (!(0 <= value)) { return false; }
-		} else if (prop == PlayerProperty.PROP_PLAYER_HCOIN) { // 10015
-			// see PlayerProperty.PROP_PLAYER_HCOIN comments
-		} else if (prop == PlayerProperty.PROP_PLAYER_SCOIN) { // 10016
-			// See 10015
-		} else if (prop == PlayerProperty.PROP_PLAYER_MP_SETTING_TYPE) { // 10017
-			if (!(0 <= value && value <= 2)) { return false; }
-		} else if (prop == PlayerProperty.PROP_IS_MP_MODE_AVAILABLE) { // 10018
-			if (!(0 <= value && value <= 1)) { return false; }
-		} else if (prop == PlayerProperty.PROP_PLAYER_WORLD_LEVEL) { // 10019
-			if (!(0 <= value && value <= 8)) { return false; }
-		} else if (prop == PlayerProperty.PROP_PLAYER_RESIN) { // 10020
-			// Do not set 160 as a cap, because player can have more than 160 when they use fragile resin.
-			if (!(0 <= value)) { return false; }
-		} else if (prop == PlayerProperty.PROP_PLAYER_WAIT_SUB_HCOIN) { // 10022
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_PLAYER_WAIT_SUB_SCOIN) { // 10023
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_IS_ONLY_MP_WITH_PS_PLAYER) { // 10024
-			if (!(0 <= value && value <= 1)) { return false; }
-		} else if (prop == PlayerProperty.PROP_PLAYER_MCOIN) { // 10025
-			// see 10015
-		} else if (prop == PlayerProperty.PROP_PLAYER_WAIT_SUB_MCOIN) { // 10026
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_PLAYER_LEGENDARY_KEY) { // 10027
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_IS_HAS_FIRST_SHARE) { // 10028
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_PLAYER_FORGE_POINT) { // 10029
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_CUR_CLIMATE_METER) { // 10035
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_CUR_CLIMATE_TYPE) { // 10036
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_CUR_CLIMATE_AREA_ID) { // 10037
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_CUR_CLIMATE_AREA_CLIMATE_TYPE) { // 10038
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_PLAYER_WORLD_LEVEL_LIMIT) { // 10039
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_PLAYER_WORLD_LEVEL_ADJUST_CD) { // 10040
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_PLAYER_LEGENDARY_DAILY_TASK_NUM) { // 10041
-			// TODO: implement sanity check
-		} else if (prop == PlayerProperty.PROP_PLAYER_HOME_COIN) { // 10042
-			if (!(0 <= value)) { return false; }
-		} else if (prop == PlayerProperty.PROP_PLAYER_WAIT_SUB_HOME_COIN) { // 10043
-			// TODO: implement sanity check
-		}
-		saveSanityCheckedProperty(prop, value);
-		return false;
-	}
+    public void onLogout() {
+        try {
+            // stop stamina calculation
+            this.getStaminaManager().stopSustainedStaminaHandler();
+
+            // force to leave the dungeon (inside has a "if")
+            this.getServer().getDungeonManager().exitDungeon(this);
+
+            // Leave world
+            if (this.getWorld() != null) {
+                this.getWorld().removePlayer(this);
+            }
+
+            // Status stuff
+            this.getProfile().syncWithCharacter(this);
+            this.getProfile().setPlayer(null); // Set offline
+
+            this.getCoopRequests().clear();
+
+            // Save to db
+            this.save();
+            this.getTeamManager().saveAvatars();
+            this.getFriendsList().save();
+
+            // Call quit event.
+            PlayerQuitEvent event = new PlayerQuitEvent(this);
+            event.call();
+
+            //reset wood
+            this.getDeforestationManager().resetWood();
+
+        } catch (Throwable e) {
+            e.printStackTrace();
+            Grasscutter.getLogger().warn("Player (UID {}) save failure", this.getUid());
+        } finally {
+            this.removeFromServer();
+        }
+    }
+
+    public void removeFromServer() {
+        // Remove from server.
+        //Note: DON'T DELETE BY UID,BECAUSE THERE ARE MULTIPLE SAME UID PLAYERS WHEN DUPLICATED LOGIN!
+        //so I decide to delete by object rather than uid
+        this.getServer().getPlayers().values().removeIf(player1 -> player1 == this);
+    }
+
+    public enum SceneLoadState {
+        NONE(0), LOADING(1), INIT(2), LOADED(3);
+
+        private final int value;
+
+        SceneLoadState(int value) {
+            this.value = value;
+        }
+
+        public int getValue() {
+            return this.value;
+        }
+    }
+
+    public void setMessageHandler(MessageHandler messageHandler) {
+        this.messageHandler = messageHandler;
+    }
+
+    private void saveSanityCheckedProperty(PlayerProperty prop, int value) {
+        this.getProperties().put(prop.getId(), value);
+    }
+
+    private boolean setPropertyWithSanityCheck(PlayerProperty prop, int value) {
+        if (prop == PlayerProperty.PROP_EXP) { // 1001
+            if (!(value >= 0)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_BREAK_LEVEL) { // 1002
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_SATIATION_VAL) { // 1003
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_SATIATION_PENALTY_TIME) { // 1004
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_LEVEL) { // 4001
+            if (!(value >= 0 && value <= 90)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_LAST_CHANGE_AVATAR_TIME) { // 10001
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_MAX_SPRING_VOLUME) { // 10002
+            if (!(value >= 0 && value <= SotSManager.GlobalMaximumSpringVolume)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_CUR_SPRING_VOLUME) { // 10003
+            int playerMaximumSpringVolume = this.getProperty(PlayerProperty.PROP_MAX_SPRING_VOLUME);
+            if (!(value >= 0 && value <= playerMaximumSpringVolume)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_IS_SPRING_AUTO_USE) { // 10004
+            if (!(value >= 0 && value <= 1)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_SPRING_AUTO_USE_PERCENT) { // 10005
+            if (!(value >= 0 && value <= 100)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_IS_FLYABLE) { // 10006
+            if (!(0 <= value && value <= 1)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_IS_WEATHER_LOCKED) { // 10007
+            if (!(0 <= value && value <= 1)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_IS_GAME_TIME_LOCKED) { // 10008
+            if (!(0 <= value && value <= 1)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_IS_TRANSFERABLE) { // 10009
+            if (!(0 <= value && value <= 1)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_MAX_STAMINA) { // 10010
+            if (!(value >= 0 && value <= StaminaManager.GlobalCharacterMaximumStamina)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_CUR_PERSIST_STAMINA) { // 10011
+            int playerMaximumStamina = this.getProperty(PlayerProperty.PROP_MAX_STAMINA);
+            if (!(value >= 0 && value <= playerMaximumStamina)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_CUR_TEMPORARY_STAMINA) { // 10012
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_PLAYER_LEVEL) { // 10013
+            if (!(0 < value && value <= 90)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_PLAYER_EXP) { // 10014
+            if (!(0 <= value)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_PLAYER_HCOIN) { // 10015
+            // see PlayerProperty.PROP_PLAYER_HCOIN comments
+        } else if (prop == PlayerProperty.PROP_PLAYER_SCOIN) { // 10016
+            // See 10015
+        } else if (prop == PlayerProperty.PROP_PLAYER_MP_SETTING_TYPE) { // 10017
+            if (!(0 <= value && value <= 2)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_IS_MP_MODE_AVAILABLE) { // 10018
+            if (!(0 <= value && value <= 1)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_PLAYER_WORLD_LEVEL) { // 10019
+            if (!(0 <= value && value <= 8)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_PLAYER_RESIN) { // 10020
+            // Do not set 160 as a cap, because player can have more than 160 when they use fragile resin.
+            if (!(0 <= value)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_PLAYER_WAIT_SUB_HCOIN) { // 10022
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_PLAYER_WAIT_SUB_SCOIN) { // 10023
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_IS_ONLY_MP_WITH_PS_PLAYER) { // 10024
+            if (!(0 <= value && value <= 1)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_PLAYER_MCOIN) { // 10025
+            // see 10015
+        } else if (prop == PlayerProperty.PROP_PLAYER_WAIT_SUB_MCOIN) { // 10026
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_PLAYER_LEGENDARY_KEY) { // 10027
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_IS_HAS_FIRST_SHARE) { // 10028
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_PLAYER_FORGE_POINT) { // 10029
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_CUR_CLIMATE_METER) { // 10035
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_CUR_CLIMATE_TYPE) { // 10036
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_CUR_CLIMATE_AREA_ID) { // 10037
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_CUR_CLIMATE_AREA_CLIMATE_TYPE) { // 10038
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_PLAYER_WORLD_LEVEL_LIMIT) { // 10039
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_PLAYER_WORLD_LEVEL_ADJUST_CD) { // 10040
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_PLAYER_LEGENDARY_DAILY_TASK_NUM) { // 10041
+            // TODO: implement sanity check
+        } else if (prop == PlayerProperty.PROP_PLAYER_HOME_COIN) { // 10042
+            if (!(0 <= value)) {
+                return false;
+            }
+        } else if (prop == PlayerProperty.PROP_PLAYER_WAIT_SUB_HOME_COIN) { // 10043
+            // TODO: implement sanity check
+        }
+        this.saveSanityCheckedProperty(prop, value);
+        return false;
+    }
 
 }

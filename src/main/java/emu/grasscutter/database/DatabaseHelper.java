@@ -1,9 +1,6 @@
 package emu.grasscutter.database;
 
-import java.util.List;
-
 import com.mongodb.client.result.DeleteResult;
-
 import dev.morphia.query.FindOptions;
 import dev.morphia.query.Sort;
 import dev.morphia.query.experimental.filters.Filters;
@@ -20,126 +17,128 @@ import emu.grasscutter.game.mail.Mail;
 import emu.grasscutter.game.player.Player;
 import emu.grasscutter.game.quest.GameMainQuest;
 
+import java.util.List;
+
 import static com.mongodb.client.model.Filters.eq;
 
 public final class DatabaseHelper {
-	public static Account createAccount(String username) {
-		return createAccountWithUid(username, 0);
-	}
+    public static Account createAccount(String username) {
+        return createAccountWithUid(username, 0);
+    }
 
-	public static Account createAccountWithUid(String username, int reservedUid) {
-		// Unique names only
-		if (DatabaseHelper.checkIfAccountExists(username)) {
-			return null;
-		}
+    public static Account createAccountWithUid(String username, int reservedUid) {
+        // Unique names only
+        if (DatabaseHelper.checkIfAccountExists(username)) {
+            return null;
+        }
 
-		// Make sure there are no id collisions
-		if (reservedUid > 0) {
-			// Cannot make account with the same uid as the server console
-			if (reservedUid == GameConstants.SERVER_CONSOLE_UID) {
-				return null;
-			}
-			
-			if (DatabaseHelper.checkIfAccountExists(reservedUid)) {
-				return null;
-			}
-			
-			// Make sure no existing player already has this id.
-			if (DatabaseHelper.checkIfPlayerExists(reservedUid)) {
-				return null;
-			}
-		}
+        // Make sure there are no id collisions
+        if (reservedUid > 0) {
+            // Cannot make account with the same uid as the server console
+            if (reservedUid == GameConstants.SERVER_CONSOLE_UID) {
+                return null;
+            }
 
-		// Account
-		Account account = new Account();
-		account.setUsername(username);
-		account.setId(Integer.toString(DatabaseManager.getNextId(account)));
+            if (DatabaseHelper.checkIfAccountExists(reservedUid)) {
+                return null;
+            }
 
-		if (reservedUid > 0) {
-			account.setReservedPlayerUid(reservedUid);
-		}
+            // Make sure no existing player already has this id.
+            if (DatabaseHelper.checkIfPlayerExists(reservedUid)) {
+                return null;
+            }
+        }
 
-		DatabaseHelper.saveAccount(account);
-		return account;
-	}
+        // Account
+        Account account = new Account();
+        account.setUsername(username);
+        account.setId(Integer.toString(DatabaseManager.getNextId(account)));
 
-	@Deprecated
-	public static Account createAccountWithPassword(String username, String password) {
-		// Unique names only
-		Account exists = DatabaseHelper.getAccountByName(username);
-		if (exists != null) {
-			return null;
-		}
+        if (reservedUid > 0) {
+            account.setReservedPlayerUid(reservedUid);
+        }
 
-		// Account
-		Account account = new Account();
-		account.setId(Integer.toString(DatabaseManager.getNextId(account)));
-		account.setUsername(username);
-		account.setPassword(password);
-		DatabaseHelper.saveAccount(account);
-		return account;
-	}
+        DatabaseHelper.saveAccount(account);
+        return account;
+    }
 
-	public static void saveAccount(Account account) {
-		DatabaseManager.getAccountDatastore().save(account);
-	}
+    @Deprecated
+    public static Account createAccountWithPassword(String username, String password) {
+        // Unique names only
+        Account exists = DatabaseHelper.getAccountByName(username);
+        if (exists != null) {
+            return null;
+        }
 
-	public static Account getAccountByName(String username) {
-		return DatabaseManager.getAccountDatastore().find(Account.class).filter(Filters.eq("username", username)).first();
-	}
+        // Account
+        Account account = new Account();
+        account.setId(Integer.toString(DatabaseManager.getNextId(account)));
+        account.setUsername(username);
+        account.setPassword(password);
+        DatabaseHelper.saveAccount(account);
+        return account;
+    }
 
-	public static Account getAccountByToken(String token) {
-		if(token == null) return null;
-		return DatabaseManager.getAccountDatastore().find(Account.class).filter(Filters.eq("token", token)).first();
-	}
+    public static void saveAccount(Account account) {
+        DatabaseManager.getAccountDatastore().save(account);
+    }
 
-	public static Account getAccountBySessionKey(String sessionKey) {
-		if(sessionKey == null) return null;
-		return DatabaseManager.getAccountDatastore().find(Account.class).filter(Filters.eq("sessionKey", sessionKey)).first();
-	}
+    public static Account getAccountByName(String username) {
+        return DatabaseManager.getAccountDatastore().find(Account.class).filter(Filters.eq("username", username)).first();
+    }
 
-	public static Account getAccountById(String uid) {
-		return DatabaseManager.getAccountDatastore().find(Account.class).filter(Filters.eq("_id", uid)).first();
-	}
+    public static Account getAccountByToken(String token) {
+        if (token == null) return null;
+        return DatabaseManager.getAccountDatastore().find(Account.class).filter(Filters.eq("token", token)).first();
+    }
 
-	public static Account getAccountByPlayerId(int playerId) {
-		return DatabaseManager.getAccountDatastore().find(Account.class).filter(Filters.eq("reservedPlayerId", playerId)).first();
-	}
-	
-	public static boolean checkIfAccountExists(String name) {
-		return DatabaseManager.getAccountDatastore().find(Account.class).filter(Filters.eq("username", name)).count() > 0;
-	}
-	
-	public static boolean checkIfAccountExists(int reservedUid) {
-		return DatabaseManager.getAccountDatastore().find(Account.class).filter(Filters.eq("reservedPlayerId", reservedUid)).count() > 0;
-	}
+    public static Account getAccountBySessionKey(String sessionKey) {
+        if (sessionKey == null) return null;
+        return DatabaseManager.getAccountDatastore().find(Account.class).filter(Filters.eq("sessionKey", sessionKey)).first();
+    }
 
-	public static void deleteAccount(Account target) {
-		// To delete an account, we need to also delete all the other documents in the database that reference the account.
-		// This should optimally be wrapped inside a transaction, to make sure an error thrown mid-way does not leave the
-		// database in an inconsistent state, but unfortunately Mongo only supports that when we have a replica set ...
+    public static Account getAccountById(String uid) {
+        return DatabaseManager.getAccountDatastore().find(Account.class).filter(Filters.eq("_id", uid)).first();
+    }
 
-		Player player = Grasscutter.getGameServer().getPlayerByAccountId(target.getId());
-		
+    public static Account getAccountByPlayerId(int playerId) {
+        return DatabaseManager.getAccountDatastore().find(Account.class).filter(Filters.eq("reservedPlayerId", playerId)).first();
+    }
+
+    public static boolean checkIfAccountExists(String name) {
+        return DatabaseManager.getAccountDatastore().find(Account.class).filter(Filters.eq("username", name)).count() > 0;
+    }
+
+    public static boolean checkIfAccountExists(int reservedUid) {
+        return DatabaseManager.getAccountDatastore().find(Account.class).filter(Filters.eq("reservedPlayerId", reservedUid)).count() > 0;
+    }
+
+    public static void deleteAccount(Account target) {
+        // To delete an account, we need to also delete all the other documents in the database that reference the account.
+        // This should optimally be wrapped inside a transaction, to make sure an error thrown mid-way does not leave the
+        // database in an inconsistent state, but unfortunately Mongo only supports that when we have a replica set ...
+
+        Player player = Grasscutter.getGameServer().getPlayerByAccountId(target.getId());
+
         if (player != null) {
-        	// Close session first
+            // Close session first
             player.getSession().close();
-            
+
             // Delete data from collections
-    		DatabaseManager.getGameDatabase().getCollection("mail").deleteMany(eq("ownerUid", player.getUid()));
-    		DatabaseManager.getGameDatabase().getCollection("avatars").deleteMany(eq("ownerId", player.getUid()));
-    		DatabaseManager.getGameDatabase().getCollection("gachas").deleteMany(eq("ownerId", player.getUid()));
-    		DatabaseManager.getGameDatabase().getCollection("items").deleteMany(eq("ownerId", player.getUid()));
-    		DatabaseManager.getGameDatabase().getCollection("quests").deleteMany(eq("ownerUid", player.getUid()));
+            DatabaseManager.getGameDatabase().getCollection("mail").deleteMany(eq("ownerUid", player.getUid()));
+            DatabaseManager.getGameDatabase().getCollection("avatars").deleteMany(eq("ownerId", player.getUid()));
+            DatabaseManager.getGameDatabase().getCollection("gachas").deleteMany(eq("ownerId", player.getUid()));
+            DatabaseManager.getGameDatabase().getCollection("items").deleteMany(eq("ownerId", player.getUid()));
+            DatabaseManager.getGameDatabase().getCollection("quests").deleteMany(eq("ownerUid", player.getUid()));
 
-    		// Delete friendships.
-    		// Here, we need to make sure to not only delete the deleted account's friendships,
-    		// but also all friendship entries for that account's friends.
-    		DatabaseManager.getGameDatabase().getCollection("friendships").deleteMany(eq("ownerId", player.getUid()));
-    		DatabaseManager.getGameDatabase().getCollection("friendships").deleteMany(eq("friendId", player.getUid()));
+            // Delete friendships.
+            // Here, we need to make sure to not only delete the deleted account's friendships,
+            // but also all friendship entries for that account's friends.
+            DatabaseManager.getGameDatabase().getCollection("friendships").deleteMany(eq("ownerId", player.getUid()));
+            DatabaseManager.getGameDatabase().getCollection("friendships").deleteMany(eq("friendId", player.getUid()));
 
-    		// Delete the player last.
-    		DatabaseManager.getGameDatastore().find(Player.class).filter(Filters.eq("id", player.getUid())).delete();
+            // Delete the player last.
+            DatabaseManager.getGameDatastore().find(Player.class).filter(Filters.eq("id", player.getUid())).delete();
         }
 
 		// Finally, delete the account itself.

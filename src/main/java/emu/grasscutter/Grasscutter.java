@@ -1,8 +1,8 @@
 package emu.grasscutter;
 
-import java.io.*;
-import java.util.Calendar;
-
+import ch.qos.logback.classic.Logger;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import emu.grasscutter.auth.AuthenticationSystem;
 import emu.grasscutter.auth.DefaultAuthentication;
 import emu.grasscutter.command.CommandMap;
@@ -14,12 +14,19 @@ import emu.grasscutter.game.managers.stamina.StaminaManager;
 import emu.grasscutter.plugin.PluginManager;
 import emu.grasscutter.plugin.api.ServerHook;
 import emu.grasscutter.scripts.ScriptLoader;
+import emu.grasscutter.server.game.GameServer;
 import emu.grasscutter.server.http.HttpServer;
 import emu.grasscutter.server.http.dispatch.DispatchHandler;
-import emu.grasscutter.server.http.handlers.*;
 import emu.grasscutter.server.http.dispatch.RegionHandler;
 import emu.grasscutter.server.http.documentation.DocumentationServerHandler;
+import emu.grasscutter.server.http.handlers.AnnouncementsHandler;
+import emu.grasscutter.server.http.handlers.GachaHandler;
+import emu.grasscutter.server.http.handlers.GenericHandler;
+import emu.grasscutter.server.http.handlers.LogHandler;
+import emu.grasscutter.tools.Tools;
 import emu.grasscutter.utils.ConfigContainer;
+import emu.grasscutter.utils.Crypto;
+import emu.grasscutter.utils.Language;
 import emu.grasscutter.utils.Utils;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
@@ -30,21 +37,13 @@ import org.jline.terminal.TerminalBuilder;
 import org.reflections.Reflections;
 import org.slf4j.LoggerFactory;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
-import ch.qos.logback.classic.Logger;
-import emu.grasscutter.data.ResourceLoader;
-import emu.grasscutter.database.DatabaseManager;
-import emu.grasscutter.utils.Language;
-import emu.grasscutter.server.game.GameServer;
-import emu.grasscutter.tools.Tools;
-import emu.grasscutter.utils.Crypto;
-
 import javax.annotation.Nullable;
+import java.io.*;
+import java.util.Calendar;
 
+import static emu.grasscutter.Configuration.DATA;
+import static emu.grasscutter.Configuration.SERVER;
 import static emu.grasscutter.utils.Language.translate;
-import static emu.grasscutter.Configuration.*;
 
 public final class Grasscutter {
 	private static final Logger log = (Logger) LoggerFactory.getLogger(Grasscutter.class);
@@ -243,136 +242,138 @@ public final class Grasscutter {
 
 	public static void setLanguage(Language language) {
         Grasscutter.language = language;
-	}
+    }
 
-	public static Language getLanguage(String langCode) {
+    public static Language getLanguage(String langCode) {
         return Language.getLanguage(langCode);
-	}
+    }
 
-	public static Logger getLogger() {
-		return log;
-	}
+    public static Logger getLogger() {
+        return log;
+    }
 
-	public static LineReader getConsole() {
-		if (consoleLineReader == null) {
-			Terminal terminal = null;
-			try {
-				terminal = TerminalBuilder.builder().jna(true).build();
-			} catch (Exception e) {
-				try {
-					// Fallback to a dumb jline terminal.
-					terminal = TerminalBuilder.builder().dumb(true).build();
-				} catch (Exception ignored) {
-					// When dumb is true, build() never throws.
-				}
-			}
-			consoleLineReader = LineReaderBuilder.builder()
-					.terminal(terminal)
-					.build();
-		}
-		return consoleLineReader;
-	}
+    public static LineReader getConsole() {
+        if (consoleLineReader == null) {
+            Terminal terminal = null;
+            try {
+                terminal = TerminalBuilder.builder().jna(true).build();
+            } catch (Exception e) {
+                try {
+                    // Fallback to a dumb jline terminal.
+                    terminal = TerminalBuilder.builder().dumb(true).build();
+                } catch (Exception ignored) {
+                    // When dumb is true, build() never throws.
+                }
+            }
+            consoleLineReader = LineReaderBuilder.builder()
+                .terminal(terminal)
+                .build();
+        }
+        return consoleLineReader;
+    }
 
-	public static Gson getGsonFactory() {
-		return gson;
-	}
+    public static Gson getGsonFactory() {
+        return gson;
+    }
 
-	public static HttpServer getHttpServer() {
-		return httpServer;
-	}
+    public static HttpServer getHttpServer() {
+        return httpServer;
+    }
 
-	public static GameServer getGameServer() {
-		return gameServer;
-	}
+    public static GameServer getGameServer() {
+        return gameServer;
+    }
 
-	public static PluginManager getPluginManager() {
-		return pluginManager;
-	}
-	
-	public static AuthenticationSystem getAuthenticationSystem() {
-		return authenticationSystem;
-	}
+    public static PluginManager getPluginManager() {
+        return pluginManager;
+    }
 
-	public static PermissionHandler getPermissionHandler() {
-		return permissionHandler;
-	}
+    public static AuthenticationSystem getAuthenticationSystem() {
+        return authenticationSystem;
+    }
 
-	public static int getCurrentDayOfWeek() {
-		return day;
-	}
-	
-	/*
-	 * Utility methods.
-	 */
-	
-	public static void updateDayOfWeek() {
-		Calendar calendar = Calendar.getInstance();
-		day = calendar.get(Calendar.DAY_OF_WEEK); 
-	}
+    public static PermissionHandler getPermissionHandler() {
+        return permissionHandler;
+    }
 
-	public static void startConsole() {
-		// Console should not start in dispatch only mode.
-		if (SERVER.runMode == ServerRunMode.DISPATCH_ONLY) {
-			getLogger().info(translate("messages.dispatch.no_commands_error"));
-			return;
-		}
+    public static int getCurrentDayOfWeek() {
+        return day;
+    }
 
-		getLogger().info(translate("messages.status.done"));
-		String input = null;
-		boolean isLastInterrupted = false;
-		while (config.server.game.enableConsole) {
-			try {
-				input = consoleLineReader.readLine("> ");
-			} catch (UserInterruptException e) {
-				if (!isLastInterrupted) {
-					isLastInterrupted = true;
-					Grasscutter.getLogger().info("Press Ctrl-C again to shutdown.");
-					continue;
-				} else {
-					Runtime.getRuntime().exit(0);
-				}
-			} catch (EndOfFileException e) {
-				Grasscutter.getLogger().info("EOF detected.");
-				continue;
-			} catch (IOError e) {
-				Grasscutter.getLogger().error("An IO error occurred.", e);
-				continue;
-			}
+    /*
+     * Utility methods.
+     */
 
-			isLastInterrupted = false;
-			try {
-				CommandMap.getInstance().invoke(null, null, input);
-			} catch (Exception e) {
-				Grasscutter.getLogger().error(translate("messages.game.command_error"), e);
-			}
-		}
-	}
+    public static void updateDayOfWeek() {
+        Calendar calendar = Calendar.getInstance();
+        day = calendar.get(Calendar.DAY_OF_WEEK);
+    }
 
-	/**
-	 * Sets the authentication system for the server.
-	 * @param authenticationSystem The authentication system to use.
-	 */
-	public static void setAuthenticationSystem(AuthenticationSystem authenticationSystem) {
-		Grasscutter.authenticationSystem = authenticationSystem;
-	}
+    public static void startConsole() {
+        // Console should not start in dispatch only mode.
+        if (SERVER.runMode == ServerRunMode.DISPATCH_ONLY) {
+            getLogger().info(translate("messages.dispatch.no_commands_error"));
+            return;
+        }
 
-	/**
-	 * Sets the permission handler for the server.
-	 * @param permissionHandler The permission handler to use.
-	 */
-	public static void setPermissionHandler(PermissionHandler permissionHandler) {
-		Grasscutter.permissionHandler = permissionHandler;
-	}
+        getLogger().info(translate("messages.status.done"));
+        String input = null;
+        boolean isLastInterrupted = false;
+        while (config.server.game.enableConsole) {
+            try {
+                input = consoleLineReader.readLine("> ");
+            } catch (UserInterruptException e) {
+                if (!isLastInterrupted) {
+                    isLastInterrupted = true;
+                    Grasscutter.getLogger().info("Press Ctrl-C again to shutdown.");
+                    continue;
+                } else {
+                    Runtime.getRuntime().exit(0);
+                }
+            } catch (EndOfFileException e) {
+                Grasscutter.getLogger().info("EOF detected.");
+                continue;
+            } catch (IOError e) {
+                Grasscutter.getLogger().error("An IO error occurred.", e);
+                continue;
+            }
 
-	/*
-	 * Enums for the configuration.
-	 */
-	
-	public enum ServerRunMode {
-		HYBRID, DISPATCH_ONLY, GAME_ONLY
-	}
+            isLastInterrupted = false;
+            try {
+                CommandMap.getInstance().invoke(null, null, input);
+            } catch (Exception e) {
+                Grasscutter.getLogger().error(translate("messages.game.command_error"), e);
+            }
+        }
+    }
 
-	public enum ServerDebugMode {
-		ALL, MISSING, NONE
-	}
+    /**
+     * Sets the authentication system for the server.
+     *
+     * @param authenticationSystem The authentication system to use.
+     */
+    public static void setAuthenticationSystem(AuthenticationSystem authenticationSystem) {
+        Grasscutter.authenticationSystem = authenticationSystem;
+    }
+
+    /**
+     * Sets the permission handler for the server.
+     *
+     * @param permissionHandler The permission handler to use.
+     */
+    public static void setPermissionHandler(PermissionHandler permissionHandler) {
+        Grasscutter.permissionHandler = permissionHandler;
+    }
+
+    /*
+     * Enums for the configuration.
+     */
+
+    public enum ServerRunMode {
+        HYBRID, DISPATCH_ONLY, GAME_ONLY
+    }
+
+    public enum ServerDebugMode {
+        ALL, MISSING, NONE
+    }
 }

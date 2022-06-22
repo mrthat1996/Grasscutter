@@ -13,11 +13,6 @@ import emu.grasscutter.scripts.constants.ScriptGadgetState;
 import emu.grasscutter.server.packet.send.PacketGadgetInteractRsp;
 
 public class GadgetChest extends GadgetContent {
-	
-	public GadgetChest(EntityGadget gadget) {
-		super(gadget);
-	}
-
 	public boolean onInteract(Player player, GadgetInteractReq req) {
 		var chestInteractHandlerMap = getGadget().getScene().getWorld().getServer().getWorldDataManager().getChestInteractHandlerMap();
 		var handler = chestInteractHandlerMap.get(getGadget().getGadgetData().getJsonName());

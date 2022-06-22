@@ -1,7 +1,5 @@
 package emu.grasscutter.game.entity.gadget;
 
-import java.util.Arrays;
-
 import emu.grasscutter.game.entity.EntityGadget;
 import emu.grasscutter.game.player.Player;
 import emu.grasscutter.net.proto.GadgetInteractReqOuterClass.GadgetInteractReq;
@@ -9,6 +7,8 @@ import emu.grasscutter.net.proto.SceneGadgetInfoOuterClass.SceneGadgetInfo;
 import emu.grasscutter.net.proto.WorktopInfoOuterClass.WorktopInfo;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
+
+import java.util.Arrays;
 
 public class GadgetWorktop extends GadgetContent {
 	private IntSet worktopOptions;
